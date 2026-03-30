@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hybrid AI Fire Detection</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+  <script>
+    window.__INITIAL_ANALYSIS__ = {{ analysis | tojson }};
+  </script>
+
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Embedded Fire Intelligence Dashboard</p>
+        <h1>{{ analysis.title }}</h1>
+        <p class="hero-text">{{ analysis.subtitle }}</p>
+      </div>
+      <div class="hero-metrics">
+        <article class="metric-card accent-red">
+          <span class="metric-label">Saved Best Model</span>
+          <strong class="metric-value">{{ analysis.model.best_model.replace('_', ' ') | title }}</strong>
+        </article>
+        <article class="metric-card accent-gold">
+          <span class="metric-label">Accuracy</span>
+          <strong class="metric-value">{{ '%.2f'|format(analysis.model.accuracy * 100) }}%</strong>
+        </article>
+        <article class="metric-card accent-blue">
+          <span class="metric-label">Macro F1</span>
+          <strong class="metric-value">{{ '%.2f'|format(analysis.model.macro_f1 * 100) }}%</strong>
+        </article>
+        <article class="metric-card accent-green">
+          <span class="metric-label">Dataset Rows</span>
+          <strong class="metric-value">{{ analysis.dataset.rows }}</strong>
+        </article>
+      </div>
+    </header>
+
+    <main class="dashboard-grid">
+      <section class="panel controls-panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Automatic Live Sensor Feed</p>
+          <h2>Continuous Fire Analysis</h2>
+          <p>The dashboard now updates sensor readings automatically and analyzes every reading on its own. You only need to reset the sensor history when you want to start a fresh monitoring cycle.</p>
+        </div>
+
+        <div class="live-status-card">
+          <div>
+            <span class="live-badge">AUTO MONITORING</span>
+            <h3 id="stream-mode-title">Sensor Feed Running</h3>
+            <p id="stream-mode-copy">The system is automatically generating live sensor readings and checking for NORMAL, WARNING, or FIRE conditions.</p>
+          </div>
+          <div class="stream-pills">
+            <span id="stream-state-pill" class="status-pill dark-pill">Condition: NORMAL</span>
+            <span id="stream-step-pill" class="status-pill dark-pill">Reading #0</span>
+          </div>
+        </div>
+
+        <form id="prediction-form" class="control-form">
+          <label>
+            <span>Temperature (C) - Live Reading</span>
+            <input id="temperature" name="temperature" type="number" step="0.1" value="30.0" required readonly>
+          </label>
+          <label>
+            <span>Humidity (%) - Live Reading</span>
+            <input id="humidity" name="humidity" type="number" step="0.1" value="58.0" required readonly>
+          </label>
+          <label>
+            <span>Flame Sensor - Live Reading</span>
+            <input id="flame-display" type="text" value="0 - No flame" readonly>
+            <input id="flame" name="flame" type="hidden" value="0">
+          </label>
+          <div class="button-row">
+            <button type="button" id="toggle-stream" class="primary-btn">Pause Auto Feed</button>
+            <button type="button" id="reset-engine" class="secondary-btn">Reset Sensor History</button>
+          </div>
+        </form>
+
+        <div class="panel-subsection">
+          <h3>How To Use This</h3>
+          <ul class="plain-list">
+            <li>The system now reads simulated live sensor values automatically and predicts the fire state continuously.</li>
+            <li>You do not need to choose Normal, Warning, or Fire during normal use. The model decides that from the incoming readings.</li>
+            <li>`Reset Sensor History` clears the rolling memory so the next readings start from a fresh baseline.</li>
+            <li>`Pause Auto Feed` is only for demo control if you want to stop the live stream temporarily.</li>
+          </ul>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>Sensor Meaning</h3>
+          <ul class="plain-list">
+            {% for item in analysis.input_story %}
+            <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>Data Collection Summary</h3>
+          <div class="stacked-bars">
+            {% for item in analysis.dataset.source_breakdown %}
+            <div class="bar-block">
+              <div class="bar-label-line">
+                <span>{{ item.name }}</span>
+                <span>{{ item.count }} rows ({{ item.share }}%)</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ item.share }}%"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>Generated Sensor Ranges</h3>
+          <div class="range-grid">
+            {% for item in analysis.live_ranges %}
+            <article class="range-card range-{{ item.label | lower }}">
+              <span class="range-badge">{{ item.label }}</span>
+              <p><strong>Temperature:</strong> {{ item.temperature }}</p>
+              <p><strong>Humidity:</strong> {{ item.humidity }}</p>
+              <p><strong>Flame:</strong> {{ item.flame }}</p>
+              <p class="range-summary">{{ item.summary }}</p>
+            </article>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>How The Live Values Change</h3>
+          <ul class="plain-list">
+            {% for note in analysis.live_feed_notes %}
+            <li>{{ note }}</li>
+            {% endfor %}
+          </ul>
+          <ul class="plain-list compact-list">
+            {% for note in analysis.live_feed_transitions %}
+            <li>{{ note }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <details class="manual-panel">
+          <summary>Optional Manual Demo Scenarios</summary>
+          <p class="manual-copy">Use these only if you want to force one example reading during a presentation. They are not required for normal monitoring.</p>
+          <div class="preset-row">
+            <button type="button" class="preset-btn" data-temp="29.5" data-humidity="60" data-flame="0">Example: Normal</button>
+            <button type="button" class="preset-btn" data-temp="39.5" data-humidity="35" data-flame="0">Example: Warning</button>
+            <button type="button" class="preset-btn" data-temp="56" data-humidity="18" data-flame="1">Example: Fire</button>
+          </div>
+        </details>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Decision Output</p>
+          <h2>Prediction, Analysis, and Safety Reasoning</h2>
+          <p>The classifier, anomaly detector, and safety overrides are shown together so the final result is easy to defend in a project demo.</p>
+        </div>
+
+        <article id="verdict-card" class="verdict-card verdict-warning">
+          <div>
+            <p class="verdict-label">Final Decision</p>
+            <h3 id="verdict-text">WARNING</h3>
+            <p id="verdict-summary" class="verdict-summary">The system is evaluating the current reading.</p>
+          </div>
+          <div class="verdict-meta">
+            <span id="confidence-pill" class="status-pill">Confidence 0.00</span>
+            <span id="anomaly-pill" class="status-pill muted-pill">Anomaly --</span>
+            <span id="buzzer-pill" class="status-pill muted-pill">Buzzer --</span>
+          </div>
+        </article>
+
+        <div class="result-grid">
+          <div class="card-block">
+            <h3>Classifier Probabilities</h3>
+            <div id="probability-breakdown" class="meter-list"></div>
+          </div>
+          <div class="card-block">
+            <h3>Rule Score Breakdown</h3>
+            <div id="rule-breakdown" class="meter-list"></div>
+          </div>
+          <div class="card-block">
+            <h3>Why This Happened</h3>
+            <ul id="reasons-list" class="plain-list"></ul>
+          </div>
+          <div class="card-block">
+            <h3>Safety Overrides</h3>
+            <ul id="override-list" class="plain-list"></ul>
+          </div>
+        </div>
+
+        <div class="feature-snapshot card-block">
+          <h3>Feature Snapshot</h3>
+          <div id="feature-grid" class="feature-grid"></div>
+        </div>
+
+        <div class="feature-snapshot card-block">
+          <div class="history-header">
+            <div>
+              <h3>Live Reading Log</h3>
+              <p>Watch the random readings until you stop the feed. Each row shows the generated values and the rank predicted by the model.</p>
+            </div>
+            <span id="history-count" class="history-count">0 saved</span>
+          </div>
+          <div class="table-shell">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Generated State</th>
+                  <th>Temperature</th>
+                  <th>Humidity</th>
+                  <th>Flame</th>
+                  <th>Predicted Rank</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="history-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="panel full-width">
+      <div class="panel-heading">
+        <p class="section-kicker">System Flow</p>
+        <h2>How Data Becomes a Fire Decision</h2>
+      </div>
+      <div class="pipeline-grid">
+        {% for stage in analysis.pipeline %}
+        <article class="pipeline-card">
+          <span class="pipeline-index">{{ loop.index }}</span>
+          <h3>{{ stage.name }}</h3>
+          <p>{{ stage.summary }}</p>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="two-column-layout">
+      <section class="panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Feature Engineering</p>
+          <h2>Formula Map Used for Detection</h2>
+          <p>These are the exact engineered features the model uses. Raw sensor values are converted into rate, anomaly, rolling, and fusion features before classification.</p>
+        </div>
+        <div class="formula-grid">
+          {% for formula in analysis.formulas %}
+          <article class="formula-card">
+            <div class="formula-head">
+              <h3>{{ formula.name }}</h3>
+              <span class="formula-tag">Model Feature</span>
+            </div>
+            <code>{{ formula.formula }}</code>
+            <p>{{ formula.purpose }}</p>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <p class="section-kicker">ML Reasoning</p>
+          <h2>Forest Models and Safety Logic</h2>
+        </div>
+        <div class="note-grid">
+          {% for item in analysis.model_notes %}
+          <article class="note-card">
+            <h3>{{ item.name }}</h3>
+            <p>{{ item.summary }}</p>
+          </article>
+          {% endfor %}
+        </div>
+        <div class="panel-subsection">
+          <h3>Fusion Rules</h3>
+          <ul class="plain-list">
+            {% for rule in analysis.fusion_rules %}
+            <li>{{ rule }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+    </section>
+
+    <section class="two-column-layout">
+      <section class="panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Dataset Coverage</p>
+          <h2>How the Training Data Is Collected</h2>
+        </div>
+        <div class="dataset-meta-grid">
+          <article class="stat-card wide-card">
+            <span class="stat-label">Dataset File</span>
+            <strong class="stat-value compact">{{ analysis.dataset.path }}</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Columns Used</span>
+            <div class="chip-cloud">
+              {% for column in analysis.dataset.sensor_columns %}
+              <span class="data-chip">{{ column }}</span>
+              {% endfor %}
+            </div>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Scenario Examples</span>
+            <div class="chip-cloud">
+              {% for scenario in analysis.dataset.scenario_examples %}
+              <span class="data-chip">{{ scenario }}</span>
+              {% endfor %}
+            </div>
+          </article>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>Class Balance</h3>
+          <div class="stacked-bars">
+            {% for item in analysis.dataset.class_balance %}
+            <div class="bar-block">
+              <div class="bar-label-line">
+                <span>{{ item.label }}</span>
+                <span>{{ item.count }} rows ({{ item.share }}%)</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill alt-fill" style="width: {{ item.share }}%"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>Why These Sources Matter</h3>
+          <ul class="plain-list">
+            {% for note in analysis.dataset_notes %}
+            <li>{{ note }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Performance</p>
+          <h2>How Well the Model Detects Fire</h2>
+        </div>
+        <div class="data-card-grid">
+          <article class="stat-card">
+            <span class="stat-label">Accuracy</span>
+            <strong class="stat-value">{{ '%.2f'|format(analysis.model.accuracy * 100) }}%</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Macro F1</span>
+            <strong class="stat-value">{{ '%.2f'|format(analysis.model.macro_f1 * 100) }}%</strong>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Evaluated Rows</span>
+            <strong class="stat-value">{{ analysis.model.rows }}</strong>
+          </article>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>Per-Class Quality</h3>
+          <div class="table-shell">
+            <table>
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th>Precision</th>
+                  <th>Recall</th>
+                  <th>F1</th>
+                  <th>Support</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in analysis.model.class_scores %}
+                <tr>
+                  <td>{{ row.label }}</td>
+                  <td>{{ '%.3f'|format(row.precision) }}</td>
+                  <td>{{ '%.3f'|format(row.recall) }}</td>
+                  <td>{{ '%.3f'|format(row.f1) }}</td>
+                  <td>{{ row.support }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>Top Influential Features</h3>
+          <div class="stacked-bars">
+            {% for row in analysis.model.top_features %}
+            <div class="bar-block">
+              <div class="bar-label-line">
+                <span>{{ row.feature }}</span>
+                <span>{{ '%.4f'|format(row.importance) }}</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill feature-fill" style="width: {{ (row.importance * 100)|round(2) }}%"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+</body>
+</html>

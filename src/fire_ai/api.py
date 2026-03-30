@@ -1,16 +1,27 @@
 from __future__ import annotations
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, request
 
+from .analysis import build_project_analysis
 from .engine import HybridFireDetectionEngine
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates", static_folder="static")
 engine = HybridFireDetectionEngine()
 
 
 @app.get("/health")
 def health() -> tuple:
     return jsonify({"status": "ok", "model": "hybrid_fire_model"}), 200
+
+
+@app.get("/")
+def dashboard() -> str:
+    return render_template("dashboard.html", analysis=build_project_analysis())
+
+
+@app.get("/analysis")
+def analysis() -> tuple:
+    return jsonify(build_project_analysis()), 200
 
 
 @app.post("/reset")
@@ -36,6 +47,7 @@ def predict() -> tuple:
 
 
 def main() -> None:
+    print("Hybrid AI Fire Detection dashboard: http://127.0.0.1:5000")
     app.run(host="0.0.0.0", port=5000, debug=False)
 
 

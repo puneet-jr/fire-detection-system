@@ -63,6 +63,22 @@ Run the API:
 python server.py
 ```
 
+Then open:
+
+```text
+http://127.0.0.1:5000
+```
+
+The dashboard now shows:
+
+- live sensor input for temperature, humidity, and flame
+- final `NORMAL / WARNING / FIRE` decision
+- classifier probabilities
+- `IsolationForest` anomaly result
+- exact feature formulas and rule-score breakdown
+- dataset-source distribution and class balance
+- saved training metrics and top feature importances
+
 Create plots:
 
 ```bash
@@ -113,6 +129,7 @@ At inference time, both are fused. This gives you a hybrid AI system:
 - statistical anomaly detection
 - supervised ML classification
 - rule-based safety override
+- an explainable browser dashboard for project demonstration
 
 ## How Your Arduino Code Maps To This Project
 
