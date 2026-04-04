@@ -154,22 +154,61 @@ This project upgrades that idea by:
 - learning a classifier from labeled data
 - supporting laptop simulation before hardware deployment
 
-## How To Use With Hardware Later
+## How To Use With Hardware
 
-For your laptop demo, use `simulation.py`.
+For software-only testing, use `simulation.py`.
 
-For hardware later, keep your Arduino for sensor reading and buzzer actuation, and send serial data to a Python inference script or API in this format:
+For the real Arduino Uno setup in this repository, plug the board into your laptop and run:
 
-```text
-temperature=34.5,humidity=51.0,flame=0
+```bash
+python server.py
 ```
 
-The same model logic can then return:
+The Flask server now starts a background serial monitor automatically. If an Arduino Uno is detected on a COM port, the dashboard switches from simulation mode to hardware mode by itself and keeps using the existing `FeatureBuilder` and trained model on every live reading.
+
+The Arduino sketch should stream lines in this format:
+
+```text
+TEMP=34.5,HUM=51.0,FLAME=0,ALARM=0,ZT=0.42,ZH=-0.35
+```
+
+The Python side then returns and uses:
 
 - predicted state
 - confidence
 - anomaly flag
 - buzzer recommendation
+
+The buzzer recommendation is sent back to the Uno with `BUZZER:1` or `BUZZER:0`, while the Arduino still keeps its own local flame/anomaly alarm as a fail-safe. This means:
+
+- hardware flame detection can sound the buzzer immediately even if the laptop is slow
+- sample dashboard predictions can still drive the same physical buzzer when hardware is connected
+- the model uses the same rolling feature calculations you already trained
+
+## Arduino Uno Hardware Setup
+
+Your hardware mapping in the included sketch is:
+
+- `D2`: DHT11 data
+- `D7`: flame sensor digital output
+- `D8`: buzzer
+
+The ready-to-upload sketch is stored at:
+
+- `arduino/arduino_uno_fire_bridge/arduino_uno_fire_bridge.ino`
+
+Upload that sketch, then:
+
+1. Connect the Uno to your laptop with USB.
+2. Install Python dependencies with `pip install -r requirements.txt`.
+3. Run `python server.py`.
+4. Open `http://127.0.0.1:5000`.
+5. Wait for calibration on the Arduino and then watch the dashboard switch to live hardware mode.
+
+Optional environment variables:
+
+- `FIRE_HARDWARE_PORT=COM4` to force a specific serial port
+- `FIRE_HARDWARE_BAUD=9600` to override the baud rate
 
 ## Suggested Viva Description
 

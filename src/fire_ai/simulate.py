@@ -15,7 +15,11 @@ def run_simulation(steps: int = 40, sleep_seconds: float = 0.8, seed: int = 42) 
     print("Hybrid AI fire simulation started.")
 
     for index in range(steps):
-        if state == "normal" and rng.random() < 0.18:
+        if (index + 1) % 8 == 0:
+            state = "fire"
+        elif (index + 1) % 5 == 0:
+            state = "warning"
+        elif state == "normal" and rng.random() < 0.18:
             state = "warning"
         elif state == "warning" and rng.random() < 0.28:
             state = "fire"
@@ -32,11 +36,11 @@ def run_simulation(steps: int = 40, sleep_seconds: float = 0.8, seed: int = 42) 
         elif phase == "warning":
             temperature = rng.normal(38.0, 3.0)
             humidity = rng.normal(40.0, 6.0)
-            flame_signal = int(rng.random() < 0.18)
+            flame_signal = int(rng.random() < 0.35)
         else:
             temperature = rng.normal(52.0, 6.0)
             humidity = rng.normal(22.0, 5.0)
-            flame_signal = int(rng.random() < 0.88)
+            flame_signal = 1
 
         result = engine.predict(float(temperature), float(humidity), flame_signal)
         print("=" * 64)
