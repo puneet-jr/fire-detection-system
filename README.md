@@ -135,7 +135,7 @@ At inference time, both are fused. This gives you a hybrid AI system:
 
 Your Arduino sketch already implements a good baseline safety layer:
 
-- it calibrates baseline temperature and humidity over 50 samples
+- it calibrates baseline temperature and humidity over a short startup sample window
 - it computes Z-scores for temperature and humidity
 - it triggers the buzzer if flame is detected
 - it also triggers on abnormal temperature rise or temperature-rise-plus-humidity-drop
@@ -164,7 +164,7 @@ For the real Arduino Uno setup in this repository, plug the board into your lapt
 python server.py
 ```
 
-The Flask server now starts a background serial monitor automatically. If an Arduino Uno is detected on a COM port, the dashboard switches from simulation mode to hardware mode by itself and keeps using the existing `FeatureBuilder` and trained model on every live reading.
+The Flask server starts the Arduino monitor in the background so dataset playback can still pulse the physical buzzer when the board is connected. Use the `Start Live Feed` button in the dashboard when you want to focus the UI on real Arduino readings and live capture.
 
 The Arduino sketch should stream lines in this format:
 
@@ -203,7 +203,7 @@ Upload that sketch, then:
 2. Install Python dependencies with `pip install -r requirements.txt`.
 3. Run `python server.py`.
 4. Open `http://127.0.0.1:5000`.
-5. Wait for calibration on the Arduino and then watch the dashboard switch to live hardware mode.
+5. Wait for calibration on the Arduino, then click `Start Live Feed` in the dashboard.
 
 Optional environment variables:
 

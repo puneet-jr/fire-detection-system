@@ -68,6 +68,7 @@ def dataset_next() -> tuple:
 @app.post("/reset")
 def reset() -> tuple:
     engine.reset()
+    hardware_monitor.stop()
     hardware_monitor.reset()
     dataset_player.reset()
     return jsonify({"status": "reset"}), 200
@@ -92,7 +93,7 @@ def predict() -> tuple:
 def main() -> None:
     hardware_monitor.start()
     print("Hybrid AI Fire Detection dashboard: http://127.0.0.1:5000")
-    print("Arduino auto-detect is enabled. Use the dashboard to switch between dataset playback and live hardware capture.")
+    print("Arduino auto-detect is enabled for dataset buzzer support and live capture.")
     app.run(host="0.0.0.0", port=5000, debug=False)
 
 

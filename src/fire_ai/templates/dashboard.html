@@ -43,7 +43,7 @@
         <div class="panel-heading">
           <p class="section-kicker">Two Operating Modes</p>
           <h2>Dataset Playback And Live Hardware Capture</h2>
-          <p>Run the trained model on dataset rows for repeatable testing, or switch to live Arduino readings for real lighter-based fire capture. The physical buzzer is reserved for live hardware detection so dataset playback does not keep the buzzer stuck on.</p>
+          <p>Run the trained model on dataset rows for repeatable testing, or press Start Live Feed to focus on real Arduino readings for lighter-based fire capture. If the Arduino is connected, dataset playback can still pulse the physical buzzer for fire events without leaving it stuck on.</p>
         </div>
 
         <div class="live-status-card">
@@ -231,7 +231,7 @@
             <div class="history-header">
               <div>
                 <h3>Live Hardware Log</h3>
-                <p>Readings coming from the Arduino when live hardware mode is active or when the board is connected in the background.</p>
+                <p>Readings coming from the Arduino while live hardware mode is active.</p>
               </div>
               <span id="hardware-history-count" class="history-count">0 saved</span>
             </div>

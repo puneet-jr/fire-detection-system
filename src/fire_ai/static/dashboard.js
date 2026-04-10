@@ -521,12 +521,13 @@ async function refreshHardwareStatus(connectIfNeeded = false) {
   updateStatusCard();
 }
 
-function startDatasetMode() {
+async function startDatasetMode() {
   stopAllTimers();
   state.mode = "dataset";
   state.lastAlertKey = null;
   clearChart();
   primeAudio();
+  await refreshHardwareStatus(true);
   updateStatusCard();
   void fetchDatasetNext();
   state.datasetTimerId = window.setInterval(() => {
@@ -544,13 +545,14 @@ function pauseDatasetMode() {
   renderEventLog();
 }
 
-function resumeDatasetMode() {
+async function resumeDatasetMode() {
   if (!isDatasetMode()) {
     return;
   }
   stopAllTimers();
   state.mode = "dataset";
   primeAudio();
+  await refreshHardwareStatus(true);
   updateStatusCard();
   state.datasetTimerId = window.setInterval(() => {
     void fetchDatasetNext();
@@ -567,29 +569,31 @@ function stopDatasetMode() {
   renderEventLog();
 }
 
-function startHardwareMode() {
+async function startHardwareMode() {
   stopAllTimers();
   state.mode = "hardware";
   state.lastHardwareIndex = state.hardwareHistory.length ? state.hardwareHistory[0].index : 0;
   clearChart();
   updateStatusCard();
-  void refreshHardwareStatus(true);
+  await refreshHardwareStatus(true);
   state.hardwareTimerId = window.setInterval(() => {
-    void refreshHardwareStatus(true);
-  }, 1500);
+    void refreshHardwareStatus(false);
+  }, 1000);
 }
 
-function pauseHardwareMode() {
+async function pauseHardwareMode() {
   if (state.mode !== "hardware") {
     return;
   }
   stopHardwareTimer();
+  await fetch("/hardware/disconnect", { method: "POST" });
   state.mode = "hardware-paused";
+  await refreshHardwareStatus(false);
   updateStatusCard();
   renderEventLog();
 }
 
-function resumeHardwareMode() {
+async function resumeHardwareMode() {
   if (!isHardwareMode()) {
     return;
   }
@@ -597,18 +601,20 @@ function resumeHardwareMode() {
   state.mode = "hardware";
   state.lastHardwareIndex = state.hardwareHistory.length ? state.hardwareHistory[0].index : 0;
   updateStatusCard();
-  void refreshHardwareStatus(true);
+  await refreshHardwareStatus(true);
   state.hardwareTimerId = window.setInterval(() => {
-    void refreshHardwareStatus(true);
-  }, 1500);
+    void refreshHardwareStatus(false);
+  }, 1000);
 }
 
-function stopHardwareMode() {
+async function stopHardwareMode() {
   if (!isHardwareMode()) {
     return;
   }
   stopHardwareTimer();
+  await fetch("/hardware/disconnect", { method: "POST" });
   state.mode = "idle";
+  await refreshHardwareStatus(false);
   updateStatusCard();
   renderEventLog();
 }
@@ -659,7 +665,7 @@ async function resetAll() {
   renderEventLog();
   renderChart();
   updateStatusCard();
-  await refreshHardwareStatus(true);
+  await refreshHardwareStatus(false);
 }
 
 form.addEventListener("submit", (event) => {
@@ -667,7 +673,7 @@ form.addEventListener("submit", (event) => {
 });
 
 datasetStartButton.addEventListener("click", () => {
-  startDatasetMode();
+  void startDatasetMode();
 });
 
 datasetPauseButton.addEventListener("click", () => {
@@ -675,7 +681,7 @@ datasetPauseButton.addEventListener("click", () => {
 });
 
 datasetResumeButton.addEventListener("click", () => {
-  resumeDatasetMode();
+  void resumeDatasetMode();
 });
 
 datasetStopButton.addEventListener("click", () => {
@@ -683,19 +689,19 @@ datasetStopButton.addEventListener("click", () => {
 });
 
 hardwareStartButton.addEventListener("click", () => {
-  startHardwareMode();
+  void startHardwareMode();
 });
 
 hardwarePauseButton.addEventListener("click", () => {
-  pauseHardwareMode();
+  void pauseHardwareMode();
 });
 
 hardwareResumeButton.addEventListener("click", () => {
-  resumeHardwareMode();
+  void resumeHardwareMode();
 });
 
 hardwareStopButton.addEventListener("click", () => {
-  stopHardwareMode();
+  void stopHardwareMode();
 });
 
 resetButton.addEventListener("click", () => {

@@ -170,6 +170,9 @@ void emitSensorPacket(float currentT, float currentH, int flameState, float zT, 
   Serial.print(currentH, 2);
   Serial.print(",FLAME=");
   Serial.print(flameState);
+  if(flameState==1){
+    beepSelfTest(1000,1);
+  }
   Serial.print(",ALARM=");
   Serial.print(localAlarm ? 1 : 0);
   Serial.print(",ZT=");
