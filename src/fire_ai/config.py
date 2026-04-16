@@ -21,7 +21,6 @@ def resolve_dataset_root(candidate: str | Path | None = None) -> Path:
     fallbacks = [
         candidate,
         env_root,
-        Path(r"C:\\Users\\punee\\Desktop\\EMBEDDED\\PROJECT\\datasets_used"),
         ROOT_DIR / "external_datasets",
         ROOT_DIR / "data",
     ]

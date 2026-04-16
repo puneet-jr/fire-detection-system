@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+*.so
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Artifacts that can be regenerated
+src/fire_ai/artifacts/
