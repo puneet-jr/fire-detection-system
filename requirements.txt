@@ -1,7 +1,7 @@
-numpy
-pandas
-scikit-learn
-matplotlib
-flask
-joblib
-pyserial
+numpy>=2.0,<3
+pandas>=2.0,<4
+scikit-learn>=1.4,<2
+matplotlib>=3.8,<4
+flask>=3.0,<4
+joblib>=1.3,<2
+pyserial>=3.5,<4

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import re
+
 from flask import Flask, jsonify, render_template, request
 
 from .analysis import build_project_analysis
@@ -8,9 +11,23 @@ from .engine import HybridFireDetectionEngine
 from .hardware import ArduinoHardwareMonitor
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(32))
+
 engine = HybridFireDetectionEngine()
 hardware_monitor = ArduinoHardwareMonitor()
 dataset_player = DatasetPlaybackService()
+
+SERIAL_PORT_PATTERN = re.compile(
+    r"^(/dev/tty[A-Za-z0-9._-]+|COM\d{1,3})$"
+)
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 
 @app.get("/health")
@@ -36,7 +53,11 @@ def hardware_status() -> tuple:
 @app.post("/hardware/connect")
 def hardware_connect() -> tuple:
     payload = request.get_json(silent=True) or {}
-    hardware_monitor.start(port=payload.get("port"))
+    port = payload.get("port")
+    if port is not None:
+        if not isinstance(port, str) or not SERIAL_PORT_PATTERN.match(port):
+            return jsonify({"error": "Invalid serial port format."}), 400
+    hardware_monitor.start(port=port)
     return jsonify(hardware_monitor.status()), 200
 
 
@@ -76,11 +97,23 @@ def reset() -> tuple:
 
 @app.post("/predict")
 def predict() -> tuple:
-    payload = request.get_json(force=True)
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"error": "Request body must be valid JSON."}), 400
 
-    temperature = float(payload["temperature"])
-    humidity = float(payload["humidity"])
-    flame_signal = int(payload.get("flame", payload.get("flame_signal", 0)))
+    try:
+        temperature = float(payload["temperature"])
+        humidity = float(payload["humidity"])
+        flame_signal = int(payload.get("flame", payload.get("flame_signal", 0)))
+    except (KeyError, TypeError, ValueError) as exc:
+        return jsonify({"error": f"Invalid input: {exc}"}), 400
+
+    if not (-50 <= temperature <= 150):
+        return jsonify({"error": "temperature must be between -50 and 150."}), 400
+    if not (0 <= humidity <= 100):
+        return jsonify({"error": "humidity must be between 0 and 100."}), 400
+    if flame_signal not in (0, 1):
+        return jsonify({"error": "flame must be 0 or 1."}), 400
 
     result = engine.predict(
         temperature=temperature,
@@ -93,7 +126,7 @@ def predict() -> tuple:
 def main() -> None:
     print("Hybrid AI Fire Detection dashboard: http://127.0.0.1:5000")
     print("Start Live Feed in the dashboard when you want to connect to the Arduino.")
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="127.0.0.1", port=5000, debug=False)
 
 
 if __name__ == "__main__":

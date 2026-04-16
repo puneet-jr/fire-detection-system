@@ -150,7 +150,6 @@ def load_dataset_summary(dataset_path: str | Path | None = None) -> dict[str, An
     path = Path(dataset_path or RAW_DATASET_PATH)
     if not path.exists():
         return {
-            "path": str(path),
             "available": False,
             "rows": 0,
             "source_breakdown": [],
@@ -164,7 +163,6 @@ def load_dataset_summary(dataset_path: str | Path | None = None) -> dict[str, An
     total_rows = int(len(df))
 
     return {
-        "path": str(path),
         "available": True,
         "rows": total_rows,
         "sensor_columns": [str(col) for col in df.columns],
