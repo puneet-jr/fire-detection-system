@@ -39,16 +39,22 @@ set FIRE_DATASET_ROOT=C:\Users\punee\Desktop\EMBEDDED\PROJECT\datasets_used  # W
 export FIRE_DATASET_ROOT=/path/to/datasets_used                               # macOS/Linux
 ```
 
-Generate the unified dataset from your real files:
+Generate the unified dataset from your real files (requires external datasets):
 
 ```bash
-python generate_dataset.py --dataset-root "C:\Users\punee\Desktop\EMBEDDED\PROJECT\datasets_used"
+python generate_dataset.py --dataset-root /path/to/datasets_used
 ```
 
-Train the model:
+Or generate a synthetic-only dataset that works without external files:
 
 ```bash
-python train_model.py --dataset-root "C:\Users\punee\Desktop\EMBEDDED\PROJECT\datasets_used" --regenerate-dataset
+python generate_dataset.py
+```
+
+Train the model (uses the existing dataset by default, or regenerate it first):
+
+```bash
+python train_model.py
 ```
 
 Run the real-time simulation:
@@ -87,7 +93,8 @@ python visualize.py
 
 ## Demo & Test Commands (for viva)
 
-- Quick dataset sanity check: `python generate_dataset.py --output data/fire_sensor_dataset.csv --no-synthetic`
+- Quick dataset sanity check (requires external datasets): `python generate_dataset.py --output data/fire_sensor_dataset.csv --no-synthetic`
+- Regenerate dataset with synthetic data: `python generate_dataset.py --output data/fire_sensor_dataset.csv`
 - Train fresh: `python train_model.py --regenerate-dataset --synthetic-sequences 160`
 - Inspect metrics: `type models\training_metrics.json` (Windows) or `cat models/training_metrics.json`
 - Run live simulation log: `python simulation.py --steps 40 --sleep 0.6`
@@ -95,15 +102,15 @@ python visualize.py
 - Test API with one reading (normal):
 
 ```bash
-curl -X POST http://127.0.0.1:5000/predict -H "Content-Type: application/json" ^
-	-d "{\"temperature\": 30.5, \"humidity\": 55.0, \"flame\": 0}"
+curl -X POST http://127.0.0.1:5000/predict -H "Content-Type: application/json" \
+	-d '{"temperature": 30.5, "humidity": 55.0, "flame": 0}'
 ```
 
 - Test API with a fire scenario:
 
 ```bash
-curl -X POST http://127.0.0.1:5000/predict -H "Content-Type: application/json" ^
-	-d "{\"temperature\": 55.0, \"humidity\": 20.0, \"flame\": 1}"
+curl -X POST http://127.0.0.1:5000/predict -H "Content-Type: application/json" \
+	-d '{"temperature": 55.0, "humidity": 20.0, "flame": 1}'
 ```
 
 ## What The ML System Implements

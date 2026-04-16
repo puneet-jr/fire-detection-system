@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
@@ -172,7 +173,8 @@ def load_sensor_log_dataset(dataset_root: Path | str | None = None) -> pd.DataFr
         sequence_id += 1
 
     if not rows:
-        raise FileNotFoundError(f"No sensor log CSV files found in {root}")
+        warnings.warn(f"No sensor log CSV files found in {root}")
+        return pd.DataFrame()
 
     return pd.concat(rows, ignore_index=True)
 
@@ -180,6 +182,9 @@ def load_sensor_log_dataset(dataset_root: Path | str | None = None) -> pd.DataFr
 def load_algerian_dataset(dataset_root: Path | str | None = None) -> pd.DataFrame:
     root = resolve_dataset_root(dataset_root)
     path = root / "Algerian_forest_fires_dataset_CLEANED.csv"
+    if not path.exists():
+        warnings.warn(f"Algerian dataset not found at {path}")
+        return pd.DataFrame()
     df = pd.read_csv(path)
     df = _normalize_columns(df)
     label = (
@@ -210,6 +215,9 @@ def load_algerian_dataset(dataset_root: Path | str | None = None) -> pd.DataFram
 def load_forestfires_dataset(dataset_root: Path | str | None = None) -> pd.DataFrame:
     root = resolve_dataset_root(dataset_root)
     path = root / "forestfires.csv"
+    if not path.exists():
+        warnings.warn(f"Forest fires dataset not found at {path}")
+        return pd.DataFrame()
     df = pd.read_csv(path)
 
     temp = pd.to_numeric(df["temp"], errors="coerce")
@@ -250,10 +258,17 @@ def build_unified_dataset(
         load_algerian_dataset(resolved_root),
         load_forestfires_dataset(resolved_root),
     ]
+    frames = [f for f in frames if not f.empty]
     if include_synthetic:
         synthetic = generate_synthetic_dataset(num_sequences=synthetic_sequences, seed=seed).copy()
         synthetic["source"] = "synthetic"
         frames.append(synthetic)
+
+    if not frames:
+        raise FileNotFoundError(
+            f"No data sources found in {resolved_root} and synthetic generation "
+            "is disabled. Provide external datasets or enable synthetic data."
+        )
 
     df = pd.concat(frames, ignore_index=True)
     df["temperature"] = pd.to_numeric(df["temperature"], errors="coerce")
