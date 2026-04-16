@@ -9,7 +9,6 @@ import pandas as pd
 
 from .config import DEFAULT_EXTERNAL_DATASET_ROOT, RAW_DATASET_PATH, resolve_dataset_root
 
-
 @dataclass
 class SequenceConfig:
     warm_length: int = 30

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hybrid AI Fire Detection</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+  <script>
+    window.__INITIAL_ANALYSIS__ = {{ analysis | tojson }};
+  </script>
+
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Embedded Fire Intelligence Dashboard</p>
+        <h1>{{ analysis.title }}</h1>
+        <p class="hero-text">{{ analysis.subtitle }}</p>
+      </div>
+      <div class="hero-metrics">
+        <article class="metric-card accent-red">
+          <span class="metric-label">Saved Best Model</span>
+          <strong class="metric-value">{{ analysis.model.best_model.replace('_', ' ') | title }}</strong>
+        </article>
+        <article class="metric-card accent-gold">
+          <span class="metric-label">Accuracy</span>
+          <strong class="metric-value">{{ '%.2f'|format(analysis.model.accuracy * 100) }}%</strong>
+        </article>
+        <article class="metric-card accent-blue">
+          <span class="metric-label">Macro F1</span>
+          <strong class="metric-value">{{ '%.2f'|format(analysis.model.macro_f1 * 100) }}%</strong>
+        </article>
+        <article class="metric-card accent-green">
+          <span class="metric-label">Dataset Rows</span>
+          <strong class="metric-value">{{ analysis.dataset.rows }}</strong>
+        </article>
+      </div>
+    </header>
+
+    <main class="dashboard-grid">
+      <section class="panel controls-panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Two Operating Modes</p>
+          <h2>Dataset Playback And Live Hardware Capture</h2>
+          <p>Run the trained model on dataset rows for repeatable testing, or press Start Live Feed to focus on real Arduino readings for lighter-based fire capture. If the Arduino is connected, dataset playback can still pulse the physical buzzer for fire events without leaving it stuck on.</p>
+        </div>
+
+        <div class="live-status-card">
+          <div>
+            <span class="live-badge">ACTIVE MODE</span>
+            <h3 id="stream-mode-title">Idle</h3>
+            <p id="stream-mode-copy">Choose either dataset playback or live hardware capture. Only one mode runs at a time.</p>
+          </div>
+          <div class="stream-pills">
+            <span id="stream-state-pill" class="status-pill dark-pill">Mode: IDLE</span>
+            <span id="stream-step-pill" class="status-pill dark-pill">Reading #0</span>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>Dataset Controls</h3>
+          <div class="mode-switch-row">
+            <button type="button" id="dataset-start" class="primary-btn">Start Dataset</button>
+            <button type="button" id="dataset-pause" class="secondary-btn">Pause Dataset</button>
+            <button type="button" id="dataset-resume" class="secondary-btn">Resume Dataset</button>
+            <button type="button" id="dataset-stop" class="secondary-btn">Stop Dataset</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3>Live Hardware Controls</h3>
+          <div class="mode-switch-row">
+            <button type="button" id="hardware-start" class="primary-btn">Start Live Feed</button>
+            <button type="button" id="hardware-pause" class="secondary-btn">Pause Live Feed</button>
+            <button type="button" id="hardware-resume" class="secondary-btn">Resume Live Feed</button>
+            <button type="button" id="hardware-stop" class="secondary-btn">Stop Live Feed</button>
+          </div>
+        </div>
+
+        <div class="mode-switch-row">
+          <button type="button" id="reset-engine" class="secondary-btn">Reset All Histories</button>
+        </div>
+
+        <form id="prediction-form" class="control-form">
+          <label>
+            <span>Temperature (C)</span>
+            <input id="temperature" name="temperature" type="number" step="0.1" value="30.0" required readonly>
+          </label>
+          <label>
+            <span>Humidity (%)</span>
+            <input id="humidity" name="humidity" type="number" step="0.1" value="58.0" required readonly>
+          </label>
+          <label>
+            <span>Flame Sensor</span>
+            <input id="flame-display" type="text" value="0 - No flame" readonly>
+            <input id="flame" name="flame" type="hidden" value="0">
+          </label>
+        </form>
+
+        <div class="signal-grid">
+          <article class="signal-card">
+            <span class="signal-label">Current Source</span>
+            <strong id="source-name" class="signal-value">Idle</strong>
+          </article>
+          <article class="signal-card">
+            <span class="signal-label">Dataset Truth</span>
+            <strong id="truth-label" class="signal-value">--</strong>
+          </article>
+          <article class="signal-card">
+            <span class="signal-label">Scenario / Port</span>
+            <strong id="scenario-label" class="signal-value">--</strong>
+          </article>
+          <article class="signal-card">
+            <span class="signal-label">Hardware Status</span>
+            <strong id="hardware-label" class="signal-value">Waiting</strong>
+          </article>
+        </div>
+
+        <div class="panel-subsection">
+          <h3>How To Use This</h3>
+          <ul class="plain-list">
+            <li>Dataset mode reads rows from your dataset, runs the feature builder and model, and gives a short alert sound when flame or strong fire evidence is detected.</li>
+            <li>Live hardware mode listens to the Arduino Uno, shows the real sensor values, logs detections, and drives the physical buzzer when fire evidence is detected.</li>
+            <li>When the flame sensor becomes `1` during live hardware mode, the Arduino buzzer should sound immediately and the dashboard will log the event.</li>
+            <li>Only one mode runs at a time. Starting one mode stops the other mode first.</li>
+            <li>The chart below updates in real time for whichever mode is active, so you can see temperature, humidity, and flame-trigger points as they happen.</li>
+          </ul>
+        </div>
+
+        <details class="manual-panel">
+          <summary>Optional Manual Demo Scenarios</summary>
+          <p class="manual-copy">These manual cases run the model once without affecting the physical buzzer. They are useful when you want one forced example during a presentation.</p>
+          <div class="preset-row">
+            <button type="button" class="preset-btn" data-temp="29.5" data-humidity="60" data-flame="0">Example: Normal</button>
+            <button type="button" class="preset-btn" data-temp="39.5" data-humidity="35" data-flame="0">Example: Warning</button>
+            <button type="button" class="preset-btn" data-temp="56" data-humidity="18" data-flame="1">Example: Fire</button>
+          </div>
+        </details>
+      </section>
+
+      <section class="panel result-panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Decision Output</p>
+          <h2>Prediction, Logs, And Real-Time Metrics</h2>
+          <p>The active mode updates the final fire decision, the live feature values, the event log, and the real-time telemetry graph.</p>
+        </div>
+
+        <article id="verdict-card" class="verdict-card verdict-warning">
+          <div class="verdict-main">
+            <p class="verdict-label">Final Decision</p>
+            <h3 id="verdict-text">WARNING</h3>
+            <p id="verdict-summary" class="verdict-summary">The system is waiting for the next reading.</p>
+          </div>
+          <div class="verdict-meta">
+            <span id="confidence-pill" class="status-pill">Confidence 0.00</span>
+            <span id="anomaly-pill" class="status-pill muted-pill">Anomaly --</span>
+            <span id="buzzer-pill" class="status-pill muted-pill">Buzzer --</span>
+          </div>
+        </article>
+
+        <div class="card-block">
+          <div class="history-header">
+            <div>
+              <h3>Real-Time Sensor Graph</h3>
+              <p>Temperature and humidity trends are plotted from the active mode. Flame detections appear as red markers so you can see exactly when fire evidence entered the model.</p>
+            </div>
+          </div>
+          <div class="chart-shell">
+            <svg id="telemetry-chart" class="telemetry-chart" viewBox="0 0 760 240" preserveAspectRatio="none"></svg>
+          </div>
+          <div class="chart-legend">
+            <span class="legend-chip legend-temp">Temperature</span>
+            <span class="legend-chip legend-humidity">Humidity</span>
+            <span class="legend-chip legend-flame">Flame = 1</span>
+          </div>
+        </div>
+
+        <div class="result-grid">
+          <div class="card-block">
+            <h3>Classifier Probabilities</h3>
+            <div id="probability-breakdown" class="meter-list"></div>
+          </div>
+          <div class="card-block">
+            <h3>Rule Score Breakdown</h3>
+            <div id="rule-breakdown" class="meter-list"></div>
+          </div>
+          <div class="card-block">
+            <h3>Why This Happened</h3>
+            <ul id="reasons-list" class="plain-list"></ul>
+          </div>
+          <div class="card-block">
+            <h3>Detection Event Log</h3>
+            <ul id="event-log" class="plain-list event-log"></ul>
+          </div>
+        </div>
+
+        <div class="feature-snapshot card-block">
+          <h3>Feature Snapshot</h3>
+          <div id="feature-grid" class="feature-grid"></div>
+        </div>
+
+        <div class="dual-log-grid">
+          <div class="feature-snapshot card-block">
+            <div class="history-header">
+              <div>
+                <h3>Dataset Playback Log</h3>
+                <p>Rows sampled from your dataset while dataset playback mode is active.</p>
+              </div>
+              <span id="dataset-history-count" class="history-count">0 saved</span>
+            </div>
+            <div class="table-shell">
+              <table class="history-table dataset-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Truth</th>
+                    <th>Temp</th>
+                    <th>Humidity</th>
+                    <th>Flame</th>
+                    <th>Prediction</th>
+                    <th>Scenario</th>
+                  </tr>
+                </thead>
+                <tbody id="dataset-history-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="feature-snapshot card-block">
+            <div class="history-header">
+              <div>
+                <h3>Live Hardware Log</h3>
+                <p>Readings coming from the Arduino while live hardware mode is active.</p>
+              </div>
+              <span id="hardware-history-count" class="history-count">0 saved</span>
+            </div>
+            <div class="table-shell">
+              <table class="history-table hardware-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Source</th>
+                    <th>Temp</th>
+                    <th>Humidity</th>
+                    <th>Flame</th>
+                    <th>Prediction</th>
+                    <th>Buzzer</th>
+                  </tr>
+                </thead>
+                <tbody id="hardware-history-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="panel full-width">
+      <div class="panel-heading">
+        <p class="section-kicker">System Flow</p>
+        <h2>How Data Becomes a Fire Decision</h2>
+      </div>
+      <div class="pipeline-grid">
+        {% for stage in analysis.pipeline %}
+        <article class="pipeline-card">
+          <span class="pipeline-index">{{ loop.index }}</span>
+          <h3>{{ stage.name }}</h3>
+          <p>{{ stage.summary }}</p>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="two-column-layout">
+      <section class="panel">
+        <div class="panel-heading">
+          <p class="section-kicker">Feature Engineering</p>
+          <h2>Formula Map Used for Detection</h2>
+          <p>These are the exact engineered features the model uses. Raw sensor values are converted into rate, anomaly, rolling, and fusion features before classification.</p>
+        </div>
+        <div class="formula-grid">
+          {% for formula in analysis.formulas %}
+          <article class="formula-card">
+            <div class="formula-head">
+              <h3>{{ formula.name }}</h3>
+              <span class="formula-tag">Model Feature</span>
+            </div>
+            <code>{{ formula.formula }}</code>
+            <p>{{ formula.purpose }}</p>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <p class="section-kicker">ML Reasoning</p>
+          <h2>Forest Models And Safety Logic</h2>
+        </div>
+        <div class="note-grid">
+          {% for item in analysis.model_notes %}
+          <article class="note-card">
+            <h3>{{ item.name }}</h3>
+            <p>{{ item.summary }}</p>
+          </article>
+          {% endfor %}
+        </div>
+        <div class="panel-subsection">
+          <h3>Fusion Rules</h3>
+          <ul class="plain-list">
+            {% for rule in analysis.fusion_rules %}
+            <li>{{ rule }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <script src="{{ url_for('static', filename='dashboard.js') }}" defer></script>
+</body>
+</html>
