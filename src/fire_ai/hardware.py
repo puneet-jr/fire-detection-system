@@ -126,7 +126,7 @@ class ArduinoHardwareMonitor:
         self._last_reading: dict[str, Any] | None = None
         self._last_result: dict[str, Any] | None = None
         self._last_error: str | None = None
-        self._last_message: str = "Hardware monitor idle."
+        self._last_message: str = "Hardware monitor idle. Start Live Feed to connect to the Arduino."
         self._sample_count = 0
         self._last_buzzer_command: bool | None = None
         self._pulse_generation = 0
@@ -149,6 +149,9 @@ class ArduinoHardwareMonitor:
             return
 
         self._stop_event.clear()
+        with self._lock:
+            self._last_error = None
+            self._last_message = "Connecting to Arduino Uno serial feed..."
         self._thread = threading.Thread(target=self._run_loop, name="arduino-hardware-monitor", daemon=True)
         self._thread.start()
 
@@ -157,7 +160,7 @@ class ArduinoHardwareMonitor:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=3.0)
         self._thread = None
-        self._close_connection("Hardware monitor stopped.")
+        self._close_connection("Hardware monitor stopped. Start Live Feed to reconnect.")
 
     def reset(self) -> None:
         self.engine.reset()
@@ -186,7 +189,10 @@ class ArduinoHardwareMonitor:
                 self._last_message = f"Sent buzzer command from {reason}: {'ON' if enabled else 'OFF'}."
             return True
         except Exception as exc:  # pragma: no cover - depends on OS/device state
-            self._close_connection(f"Lost Arduino connection while writing buzzer command: {exc}")
+            self._close_connection(
+                "Lost Arduino connection while writing a buzzer command.",
+                error=str(exc),
+            )
             return False
 
     def pulse_buzzer(self, duration_seconds: float = 0.35, reason: str = "dataset pulse") -> bool:
@@ -234,7 +240,10 @@ class ArduinoHardwareMonitor:
             try:
                 raw_line = self._serial_connection.readline().decode("utf-8", errors="ignore").strip()
             except Exception as exc:  # pragma: no cover - depends on OS/device state
-                self._close_connection(f"Lost Arduino connection while reading serial data: {exc}")
+                self._close_connection(
+                    "Lost Arduino connection while reading serial data.",
+                    error=str(exc),
+                )
                 time.sleep(self.reconnect_delay)
                 continue
 
@@ -273,7 +282,14 @@ class ArduinoHardwareMonitor:
         if not self.available:
             return False
 
-        for candidate in self._candidate_ports():
+        candidates = self._candidate_ports()
+        if not candidates:
+            with self._lock:
+                self._last_error = "No serial ports were detected."
+                self._last_message = "No Arduino serial port detected. Plug it in, wait a moment, then press Start Live Feed again."
+            return False
+
+        for candidate in candidates:
             try:
                 connection = serial.Serial(candidate, self.baudrate, timeout=self.read_timeout, write_timeout=1.0)
                 time.sleep(2.0)
@@ -289,7 +305,7 @@ class ArduinoHardwareMonitor:
             except Exception as exc:  # pragma: no cover - depends on local devices
                 with self._lock:
                     self._last_error = f"Unable to open {candidate}: {exc}"
-                    self._last_message = "Waiting for Arduino Uno serial feed."
+                    self._last_message = f"Unable to open {candidate}. Check the COM port, cable, and Arduino IDE serial monitor."
 
         return False
 
@@ -308,14 +324,16 @@ class ArduinoHardwareMonitor:
         score = 0 if any(term in description for term in preferred_terms) else 1
         return score, port_info.device
 
-    def _close_connection(self, message: str) -> None:
+    def _close_connection(self, message: str, *, error: str | None = None) -> None:
         with self._lock:
             connection = self._serial_connection
             self._serial_connection = None
             self._connected = False
             self._port = None
-            self._last_error = message
-            self._last_message = "Waiting for Arduino Uno serial feed."
+            self._last_reading = None
+            self._last_result = None
+            self._last_error = error
+            self._last_message = message
 
         if connection is not None:
             try:

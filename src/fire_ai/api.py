@@ -91,9 +91,8 @@ def predict() -> tuple:
 
 
 def main() -> None:
-    hardware_monitor.start()
     print("Hybrid AI Fire Detection dashboard: http://127.0.0.1:5000")
-    print("Arduino auto-detect is enabled for dataset buzzer support and live capture.")
+    print("Start Live Feed in the dashboard when you want to connect to the Arduino.")
     app.run(host="0.0.0.0", port=5000, debug=False)
 
 

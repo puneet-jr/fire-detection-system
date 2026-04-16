@@ -53,8 +53,10 @@ const state = {
   hardwareEvents: [],
   hardware: {
     connected: false,
+    running: false,
     port: null,
-    message: "Waiting for Arduino Uno serial feed.",
+    lastError: null,
+    message: "Hardware monitor idle. Start Live Feed to connect to the Arduino.",
   },
   lastHardwareIndex: 0,
   lastAlertKey: null,
@@ -329,7 +331,7 @@ function updateStatusCard() {
     streamModeTitle.textContent = "Live Hardware Running";
     streamModeCopy.textContent = state.hardware.connected
       ? `Live hardware capture is running${state.hardware.port ? ` on ${state.hardware.port}` : ""}. External flame and environmental changes are being logged in real time.`
-      : state.hardware.message || "Waiting for Arduino Uno serial feed.";
+      : state.hardware.lastError || state.hardware.message || "Waiting for Arduino Uno serial feed.";
     streamStatePill.textContent = "Mode: LIVE";
   } else if (state.mode === "hardware-paused") {
     streamModeTitle.textContent = "Live Hardware Paused";
@@ -343,7 +345,11 @@ function updateStatusCard() {
 
   streamStepPill.textContent = `Reading #${currentReadingCount()}`;
   sourceName.textContent = isHardwareMode() ? "Live Hardware" : isDatasetMode() ? "Dataset Playback" : "Idle";
-  hardwareLabel.textContent = state.hardware.connected ? `Connected ${state.hardware.port || ""}`.trim() : "Waiting";
+  hardwareLabel.textContent = state.hardware.connected
+    ? `Connected ${state.hardware.port || ""}`.trim()
+    : state.hardware.running
+      ? "Connecting"
+      : "Idle";
 }
 
 function primeAudio() {
@@ -412,122 +418,145 @@ function clearChart() {
 }
 
 async function fetchDatasetNext() {
-  const response = await fetch("/dataset/next", { method: "POST" });
-  if (!response.ok) {
-    return;
-  }
+  try {
+    const response = await fetch("/dataset/next", { method: "POST" });
+    if (!response.ok) {
+      return;
+    }
 
-  const packet = await response.json();
-  const reading = packet.reading;
-  setLiveInputs(reading);
-  truthLabel.textContent = packet.dataset.label;
-  scenarioLabel.textContent = packet.dataset.scenario;
-  renderPrediction(packet.result, { source: "dataset" });
+    const packet = await response.json();
+    const reading = packet.reading;
+    setLiveInputs(reading);
+    truthLabel.textContent = packet.dataset.label;
+    scenarioLabel.textContent = packet.dataset.scenario;
+    renderPrediction(packet.result, { source: "dataset" });
 
-  state.datasetHistory = [
-    {
-      index: packet.index,
-      generatedState: packet.dataset.label,
-      temperature: packet.reading.temperature,
-      humidity: packet.reading.humidity,
-      flame: packet.reading.flame,
-      prediction: packet.result.prediction,
-      confidence: packet.result.confidence,
-      scenario: packet.dataset.scenario,
-    },
-    ...state.datasetHistory,
-  ].slice(0, 18);
-  renderDatasetHistory();
-
-  if (packet.reading.flame === 1 || packet.result.buzzer) {
-    state.datasetEvents = [
+    state.datasetHistory = [
       {
-        source: "dataset",
         index: packet.index,
-        truth: packet.dataset.label,
-        prediction: packet.result.prediction,
+        generatedState: packet.dataset.label,
+        temperature: packet.reading.temperature,
+        humidity: packet.reading.humidity,
         flame: packet.reading.flame,
-        buzzer: packet.result.buzzer,
+        prediction: packet.result.prediction,
+        confidence: packet.result.confidence,
+        scenario: packet.dataset.scenario,
       },
-      ...state.datasetEvents,
+      ...state.datasetHistory,
     ].slice(0, 18);
-    playDatasetAlert(`dataset-${packet.index}`);
-  }
+    renderDatasetHistory();
 
-  renderEventLog();
-  updateChartSeries(reading);
-  updateStatusCard();
+    if (packet.reading.flame === 1 || packet.result.buzzer) {
+      state.datasetEvents = [
+        {
+          source: "dataset",
+          index: packet.index,
+          truth: packet.dataset.label,
+          prediction: packet.result.prediction,
+          flame: packet.reading.flame,
+          buzzer: packet.result.buzzer,
+        },
+        ...state.datasetEvents,
+      ].slice(0, 18);
+      playDatasetAlert(`dataset-${packet.index}`);
+    }
+
+    renderEventLog();
+    updateChartSeries(reading);
+    updateStatusCard();
+  } catch (error) {
+    streamModeCopy.textContent = "Dataset playback hit a loading error. Reset and try again.";
+  }
 }
 
 async function refreshHardwareStatus(connectIfNeeded = false) {
-  const response = await fetch(connectIfNeeded ? "/hardware/connect" : "/hardware/status", {
-    method: connectIfNeeded ? "POST" : "GET",
-    headers: connectIfNeeded ? { "Content-Type": "application/json" } : undefined,
-    body: connectIfNeeded ? JSON.stringify({}) : undefined,
-  });
-  if (!response.ok) {
-    return;
-  }
+  try {
+    const response = await fetch(connectIfNeeded ? "/hardware/connect" : "/hardware/status", {
+      method: connectIfNeeded ? "POST" : "GET",
+      headers: connectIfNeeded ? { "Content-Type": "application/json" } : undefined,
+      body: connectIfNeeded ? JSON.stringify({}) : undefined,
+    });
+    if (!response.ok) {
+      return;
+    }
 
-  const status = await response.json();
-  state.hardware = {
-    connected: Boolean(status.connected),
-    port: status.port || null,
-    message: status.message || "Waiting for Arduino Uno serial feed.",
-  };
+    const status = await response.json();
+    state.hardware = {
+      connected: Boolean(status.connected),
+      running: Boolean(status.running),
+      port: status.port || null,
+      lastError: status.last_error || null,
+      message: status.message || "Hardware monitor idle. Start Live Feed to connect to the Arduino.",
+    };
 
-  state.hardwareHistory = status.history || [];
-  state.hardwareEvents = state.hardwareHistory
-    .filter((entry) => entry.flame === 1 || entry.buzzer)
-    .map((entry) => ({
-      source: "hardware",
-      index: entry.index,
-      prediction: entry.prediction,
-      flame: entry.flame,
-      buzzer: Boolean(entry.buzzer),
-    }))
-    .slice(0, 18);
-  renderHardwareHistory();
+    state.hardwareHistory = status.history || [];
+    state.hardwareEvents = state.hardwareHistory
+      .filter((entry) => entry.flame === 1 || entry.buzzer)
+      .map((entry) => ({
+        source: "hardware",
+        index: entry.index,
+        prediction: entry.prediction,
+        flame: entry.flame,
+        buzzer: Boolean(entry.buzzer),
+      }))
+      .slice(0, 18);
+    renderHardwareHistory();
 
-  if (state.mode === "hardware" || state.mode === "hardware-paused") {
-    if (status.last_reading) {
-      setLiveInputs({
-        temperature: status.last_reading.temperature,
-        humidity: status.last_reading.humidity,
-        flame: status.last_reading.flame,
-      });
-      truthLabel.textContent = "LIVE";
-      scenarioLabel.textContent = status.port || "Arduino Uno";
-      const newestIndex = state.hardwareHistory.length ? state.hardwareHistory[0].index : 0;
-      if (state.mode === "hardware" && newestIndex && newestIndex !== state.lastHardwareIndex) {
-        state.lastHardwareIndex = newestIndex;
-        updateChartSeries({
+    if (state.mode === "hardware" || state.mode === "hardware-paused") {
+      if (status.last_reading) {
+        setLiveInputs({
           temperature: status.last_reading.temperature,
           humidity: status.last_reading.humidity,
           flame: status.last_reading.flame,
         });
+        truthLabel.textContent = "LIVE";
+        scenarioLabel.textContent = status.port || "Arduino Uno";
+        const newestIndex = state.hardwareHistory.length ? state.hardwareHistory[0].index : 0;
+        if (state.mode === "hardware" && newestIndex && newestIndex !== state.lastHardwareIndex) {
+          state.lastHardwareIndex = newestIndex;
+          updateChartSeries({
+            temperature: status.last_reading.temperature,
+            humidity: status.last_reading.humidity,
+            flame: status.last_reading.flame,
+          });
+        }
+      } else {
+        truthLabel.textContent = "--";
+        scenarioLabel.textContent = status.port || "--";
+      }
+
+      if (status.last_result) {
+        renderPrediction(status.last_result, {
+          source: "hardware",
+          port: status.port,
+        });
       }
     }
 
-    if (status.last_result) {
-      renderPrediction(status.last_result, {
-        source: "hardware",
-        port: status.port,
-      });
-    }
+    renderEventLog();
+    updateStatusCard();
+  } catch (error) {
+    state.hardware = {
+      connected: false,
+      running: false,
+      port: null,
+      lastError: "Unable to reach the hardware status endpoint.",
+      message: "Live feed could not load hardware status from the server.",
+    };
+    updateStatusCard();
   }
-
-  renderEventLog();
-  updateStatusCard();
 }
 
 async function startDatasetMode() {
   stopAllTimers();
+  await fetch("/dataset/reset", { method: "POST" });
   state.mode = "dataset";
   state.lastAlertKey = null;
   clearChart();
   primeAudio();
-  await refreshHardwareStatus(true);
+  truthLabel.textContent = "--";
+  scenarioLabel.textContent = "--";
+  await refreshHardwareStatus(false);
   updateStatusCard();
   void fetchDatasetNext();
   state.datasetTimerId = window.setInterval(() => {
@@ -552,7 +581,7 @@ async function resumeDatasetMode() {
   stopAllTimers();
   state.mode = "dataset";
   primeAudio();
-  await refreshHardwareStatus(true);
+  await refreshHardwareStatus(false);
   updateStatusCard();
   state.datasetTimerId = window.setInterval(() => {
     void fetchDatasetNext();
@@ -586,7 +615,6 @@ async function pauseHardwareMode() {
     return;
   }
   stopHardwareTimer();
-  await fetch("/hardware/disconnect", { method: "POST" });
   state.mode = "hardware-paused";
   await refreshHardwareStatus(false);
   updateStatusCard();
@@ -601,7 +629,7 @@ async function resumeHardwareMode() {
   state.mode = "hardware";
   state.lastHardwareIndex = state.hardwareHistory.length ? state.hardwareHistory[0].index : 0;
   updateStatusCard();
-  await refreshHardwareStatus(true);
+  await refreshHardwareStatus(!state.hardware.running);
   state.hardwareTimerId = window.setInterval(() => {
     void refreshHardwareStatus(false);
   }, 1000);
@@ -722,5 +750,5 @@ window.addEventListener("load", async () => {
   renderChart();
   updateStatusCard();
   await fetch("/dataset/reset", { method: "POST" });
-  await refreshHardwareStatus(true);
+  await refreshHardwareStatus(false);
 });
